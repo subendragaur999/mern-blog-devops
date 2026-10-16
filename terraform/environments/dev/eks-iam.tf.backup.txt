@@ -1,0 +1,75 @@
+output "private_subnet_ids" {
+  description = "IDs of private subnets for EKS worker nodes"
+  value       = { for key, subnet in aws_subnet.private : key => subnet.id }
+}
+
+MERN,AWS and devops -1996
+17:57
+terraform output vpc_id
+terraform output private_subnet_ids
+terraform output public_subnet_ids
+aws eks describe-addon-versions \
+  --region ap-south-1 \
+  --query 'addons[?addonName==`vpc-cni`].addonVersions[0].compatibilities[].clusterVersion' \
+  --output json
+
+MERN,AWS and devops -1996
+17:58
+aws ec2 describe-nat-gateways \
+  --filter "Name=state,Values=available" \
+  --query 'NatGateways[].{ID:NatGatewayId,State:State,Subnet:SubnetId}' \
+  --output table
+
+MERN,AWS and devops -1996
+18:02
+data "aws_iam_policy_document" "eks_assume_role" {
+  statement {
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["eks.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "eks_cluster" {
+  name               = "mern-blog-eks-cluster-role"
+  assume_role_policy = data.aws_iam_policy_document.eks_assume_role.json
+}
+
+resource "aws_iam_role_policy_attachment" "eks_cluster" {
+  role       = aws_iam_role.eks_cluster.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
+}
+
+data "aws_iam_policy_document" "nodes_assume_role" {
+  statement {
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["ec2.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "eks_nodes" {
+  name               = "mern-blog-eks-node-role"
+  assume_role_policy = data.aws_iam_policy_document.nodes_assume_role.json
+}
+
+resource "aws_iam_role_policy_attachment" "nodes_worker" {
+  role       = aws_iam_role.eks_nodes.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
+}
+
+resource "aws_iam_role_policy_attachment" "nodes_ecr" {
+  role       = aws_iam_role.eks_nodes.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPullOnly"
+}
+
+resource "aws_iam_role_policy_attachment" "nodes_cni" {
+  role       = aws_iam_role.eks_nodes.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
+}
